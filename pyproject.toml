@@ -1,0 +1,15 @@
+[project]
+name = "challenge-app"
+version = "0.1.0"
+description = "A web app that gives kids challenges to find and photograph items around the house"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.23.2",
+    "jinja2>=3.1.2",
+    "python-multipart>=0.0.6",
+    "httpx>=0.24.1",
+    "pillow>=10.0.0",
+    "pyyaml>=6.0.2",
+]

@@ -1,0 +1,101 @@
+# Challenge App Configuration
+
+# App general settings
+app:
+  title: "House Hunt Challenge"
+  description: "Find objects around your house!"
+  version: "1.0.0"
+  debug: true
+  host: "0.0.0.0"
+  port: 8000
+
+# Challenge settings
+challenge:
+  # Points configuration
+  points:
+    max_per_challenge: 25         # Maximum points for a perfect challenge
+    goal: 100                     # Total points needed to complete the game
+    time_multiplier: 0.8          # How much time affects point calculation
+  
+  # Time settings
+  time:
+    default_duration: 60          # Default challenge duration in seconds
+    min_duration: 30              # Minimum challenge duration
+    max_duration: 120             # Maximum challenge duration
+  
+  # Difficulty levels (for future implementation)
+  difficulty_levels:
+    easy:
+      time_multiplier: 1.5
+      points_multiplier: 0.7
+    medium:
+      time_multiplier: 1.0
+      points_multiplier: 1.0
+    hard:
+      time_multiplier: 0.7
+      points_multiplier: 1.5
+
+# Content settings
+content:
+  # Path settings
+  paths:
+    images_dir: "app/static/images"
+    templates_dir: "app/templates"
+    static_dir: "app/static"
+  
+  # Challenge items
+  items:
+    - id: 1
+      name: "Toilet Paper Roll"
+      image: "toilet_paper.jpg"
+      difficulty: "easy"
+    - id: 2
+      name: "Shower Head"
+      image: "shower_head.jpg"
+      difficulty: "medium"
+    - id: 3
+      name: "Sofa"
+      image: "sofa.jpg"
+      difficulty: "easy"
+    - id: 4
+      name: "Television"
+      image: "tv.jpg"
+      difficulty: "easy"
+    - id: 5
+      name: "Front Door"
+      image: "front_door.jpg"
+      difficulty: "medium"
+    - id: 6
+      name: "Kitchen Sink"
+      image: "kitchen_sink.jpg"
+      difficulty: "medium"
+    - id: 7
+      name: "Light Switch"
+      image: "light_switch.jpg"
+      difficulty: "hard"
+    - id: 8
+      name: "Plant"
+      image: "plant.jpg"
+      difficulty: "hard"
+
+# UI settings
+ui:
+  colors:
+    primary: "#4b0082"      # Indigo
+    secondary: "#6a5acd"    # Slate blue
+    accent: "#ff4500"       # Orange-red
+    background: "#f0f8ff"   # Alice blue
+    text: "#333333"         # Dark gray
+  
+  # Progress bar settings
+  progress_bar:
+    time_color: "#ff4500"   # Orange-red
+    points_color: "#4b0082" # Indigo
+    height: "20px"
+    border_radius: "20px"
+
+# Image recognition settings
+image_recognition:
+  confidence_threshold: 0.70   # Minimum confidence level for a match
+  max_objects: 5               # Maximum number of objects to detect
+  timeout: 5                   # Timeout for image processing in seconds

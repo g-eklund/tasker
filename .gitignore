@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+
+# OS files
+.DS_Store
+
+# Editor settings
+.vscode/
+.idea/
+
+# Uploaded photos (if you later allow them to be saved)
+app/static/uploads/
