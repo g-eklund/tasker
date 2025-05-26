@@ -63,7 +63,7 @@ const ChallengeScreen: React.FC<ChallengeScreenProps> = ({
           {challenge.item.name}
         </Text>
         <Image
-          src={`/static/images/${challenge.item.image}`}
+          src={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/static/images/${challenge.item.image}`}
           alt={challenge.item.name}
           maxH="200px"
           mx="auto"
