@@ -317,12 +317,22 @@ async def debug_env():
 @app.get("/health")
 async def health_check():
     """Simple health check endpoint for Railway"""
-    return {"status": "healthy", "message": "House Hunt Challenge API is running"}
+    import os
+    return {
+        "status": "healthy", 
+        "message": "House Hunt Challenge API is running",
+        "port": os.environ.get("PORT", "not set"),
+        "host": os.environ.get("HOST", "not set"),
+        "railway_environment": os.environ.get("RAILWAY_ENVIRONMENT", "not set")
+    }
 
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", CONFIG["app"]["port"]))
     host = os.environ.get("HOST", CONFIG["app"]["host"])
+    
+    print(f"Starting server on {host}:{port}")
+    print(f"Environment: {os.environ.get('RAILWAY_ENVIRONMENT', 'local')}")
     
     uvicorn.run(
         "main:app", 
