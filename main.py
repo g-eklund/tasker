@@ -9,8 +9,11 @@ from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException, Res
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+
+
 
 # Supabase client
 from app.supabase_client import supabase
@@ -34,6 +37,26 @@ app = FastAPI(
     title=CONFIG["app"]["title"],
     description=CONFIG["app"]["description"],
     version=CONFIG["app"]["version"]
+)
+
+# Add CORS middleware to allow frontend requests
+import os
+allowed_origins = [
+    "http://localhost:3000",  # React dev server
+    "https://*.vercel.app",   # Vercel deployments
+    "https://your-app-name.vercel.app",  # Replace with your actual domain
+]
+
+# Add production domain from environment variable if available
+if os.environ.get("FRONTEND_URL"):
+    allowed_origins.append(os.environ.get("FRONTEND_URL"))
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Mount static files (CSS, JS, images)
@@ -132,7 +155,8 @@ async def new_challenge(request: Request, response: Response, user_id: Optional[
         "challenge_id": challenge_id,
         "item": challenge_item,
         "time_limit": challenge.time_limit,
-        "start_time": challenge.start_time
+        "start_time": challenge.start_time,
+        "session_id": session_id
     }
 
 @app.post("/api/submit-photo/{challenge_id}")
@@ -239,10 +263,41 @@ async def get_stats():
         "avg_completion_time": round(avg_completion_time, 2)
     }
 
+@app.get("/api/session-stats/{session_id}")
+async def get_session_stats(session_id: str):
+    """Get statistics for a specific session from Supabase"""
+    try:
+        # Get all successful challenge events for this session
+        events_response = supabase.table("challenge-events").select("duration").eq("session_id", session_id).eq("success", True).execute()
+        
+        if not events_response.data:
+            return {
+                "total_successful_challenges": 0,
+                "average_duration": 0
+            }
+        
+        durations = [event["duration"] for event in events_response.data]
+        avg_duration = sum(durations) / len(durations) if durations else 0
+        
+        return {
+            "total_successful_challenges": len(durations),
+            "average_duration": round(avg_duration, 1)
+        }
+    except Exception as e:
+        # Return default values if there's an error
+        return {
+            "total_successful_challenges": 0,
+            "average_duration": 0
+        }
+
 if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", CONFIG["app"]["port"]))
+    host = os.environ.get("HOST", CONFIG["app"]["host"])
+    
     uvicorn.run(
         "main:app", 
-        host=CONFIG["app"]["host"], 
-        port=CONFIG["app"]["port"], 
+        host=host, 
+        port=port, 
         reload=CONFIG["app"]["debug"]
     )

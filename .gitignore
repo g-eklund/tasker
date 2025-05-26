@@ -19,3 +19,8 @@ wheels/
 
 # Uploaded photos (if you later allow them to be saved)
 app/static/uploads/
+
+# Large files that shouldn't be committed
+frontend/package-lock.json
+frontend/public/favicon_io.zip
+*.zip
