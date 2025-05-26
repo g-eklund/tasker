@@ -290,6 +290,23 @@ async def get_session_stats(session_id: str):
             "average_duration": 0
         }
 
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables (remove in production)"""
+    env_vars = {}
+    for key, value in os.environ.items():
+        if key.startswith("SUPABASE"):
+            env_vars[key] = f"Set ({len(value)} chars)" if value else "Empty"
+        elif key in ["PORT", "HOST", "RAILWAY_", "NIXPACKS_"]:
+            env_vars[key] = f"Set ({len(str(value))} chars)" if value else "Empty"
+    
+    return {
+        "supabase_vars": {k: v for k, v in env_vars.items() if k.startswith("SUPABASE")},
+        "railway_vars": {k: v for k, v in env_vars.items() if "RAILWAY" in k},
+        "total_env_vars": len(os.environ),
+        "all_env_keys": list(os.environ.keys())[:20]  # First 20 keys for debugging
+    }
+
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", CONFIG["app"]["port"]))
