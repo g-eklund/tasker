@@ -13,9 +13,24 @@ export const gameApi = {
   startNewChallenge: async (): Promise<Challenge> => {
     console.log('API Base URL:', API_BASE_URL);
     console.log('Starting new challenge...');
-    const response = await api.post('/api/new-challenge');
-    console.log('Challenge response:', response.data);
-    return response.data;
+    try {
+      const response = await api.post('/api/new-challenge');
+      console.log('Challenge response:', response.data);
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      return response.data;
+    } catch (error) {
+      console.error('API Error in startNewChallenge:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.response?.headers
+        });
+      }
+      throw error;
+    }
   },
 
   // Submit a photo for the current challenge

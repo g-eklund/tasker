@@ -12,12 +12,14 @@ interface StartScreenProps {
   totalPoints: number;
   maxPoints: number;
   onStartChallenge: () => void;
+  isLoading?: boolean;
 }
 
 const StartScreen: React.FC<StartScreenProps> = ({ 
   totalPoints, 
   maxPoints, 
-  onStartChallenge 
+  onStartChallenge,
+  isLoading = false
 }) => {
   const progressPercentage = (totalPoints / maxPoints) * 100;
 
@@ -88,6 +90,8 @@ const StartScreen: React.FC<StartScreenProps> = ({
           transform: 'scale(0.98)',
         }}
         transition="all 0.2s ease"
+        loading={isLoading}
+        disabled={isLoading}
       >
         🚀 Start New Challenge! 🎯
       </Button>

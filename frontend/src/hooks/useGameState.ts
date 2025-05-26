@@ -14,6 +14,11 @@ const INITIAL_GAME_STATE: GameState = {
   averageDuration: 0,
 };
 
+// Add loading state
+interface ExtendedGameState extends GameState {
+  isLoading: boolean;
+}
+
 const GAME_CONFIG: GameConfig = {
   challengeDuration: 60,
   maxPoints: 100,
@@ -21,12 +26,13 @@ const GAME_CONFIG: GameConfig = {
 };
 
 export const useGameState = () => {
-  const [gameState, setGameState] = useState<GameState>(() => {
+  const [gameState, setGameState] = useState<ExtendedGameState>(() => {
     // Load total points from localStorage
     const savedPoints = localStorage.getItem('totalSessionPoints');
     return {
       ...INITIAL_GAME_STATE,
       totalPoints: savedPoints ? parseInt(savedPoints, 10) : 0,
+      isLoading: false,
     };
   });
 
@@ -70,10 +76,17 @@ export const useGameState = () => {
   }, [gameState.timeRemaining, gameState.isActive]);
 
   const startNewChallenge = useCallback(async () => {
+    // Prevent multiple simultaneous requests
+    if (gameState.isLoading) {
+      console.log('useGameState: Already loading, ignoring request');
+      return;
+    }
+
     try {
       console.log('useGameState: Starting new challenge...');
       setGameState(prev => ({
         ...prev,
+        isLoading: true,
         feedback: 'Starting new challenge...',
         feedbackType: 'info',
       }));
@@ -83,6 +96,7 @@ export const useGameState = () => {
       
       setGameState(prev => ({
         ...prev,
+        isLoading: false,
         currentChallenge: challenge,
         timeRemaining: challenge.time_limit,
         isActive: true,
@@ -95,11 +109,12 @@ export const useGameState = () => {
       console.error('useGameState: Error starting challenge:', error);
       setGameState(prev => ({
         ...prev,
+        isLoading: false,
         feedback: 'Failed to start challenge. Please try again.',
         feedbackType: 'error',
       }));
     }
-  }, []);
+  }, [gameState.isLoading]);
 
   const fetchSessionStats = useCallback(async (sessionId: string) => {
     try {
@@ -166,12 +181,16 @@ export const useGameState = () => {
     setGameState({
       ...INITIAL_GAME_STATE,
       totalPoints: gameState.totalPoints, // Keep total points
+      isLoading: false,
     });
   }, [gameState.totalPoints]);
 
   const resetSession = useCallback(() => {
     localStorage.removeItem('totalSessionPoints');
-    setGameState(INITIAL_GAME_STATE);
+    setGameState({
+      ...INITIAL_GAME_STATE,
+      isLoading: false,
+    });
   }, []);
 
   return {

@@ -57,6 +57,7 @@ const HouseHuntGame: React.FC = () => {
         totalPoints={gameState.totalPoints}
         maxPoints={gameConfig.maxPoints}
         onStartChallenge={startNewChallenge}
+        isLoading={gameState.isLoading}
       />
     );
   };
