@@ -40,7 +40,6 @@ content:
   # Path settings
   paths:
     images_dir: "app/static/images"
-    templates_dir: "app/templates"
     static_dir: "app/static"
   
   # Challenge items
