@@ -146,7 +146,7 @@
         <p class="subtitle">Find these items as fast as you can!</p>
         
         <div id="session-progress" class="progress-container" style="margin-bottom: 30px;">
-            <div id="points-progress-bar" class="progress-bar points-progress" style="width: 0%;">Session Points: 0/100</div>
+            <div id="points-progress-bar" class="progress-bar points-progress" style="width: 0%;"></div>
         </div>
         
         <div id="start-section">
@@ -159,7 +159,7 @@
             <img id="challenge-image" class="challenge-image" alt="Item to find">
             <div class="timer">Time: <span id="timer">60</span> seconds</div>
             <div class="progress-container">
-                <div id="time-progress-bar" class="progress-bar time-progress" style="width: 100%;">Time Remaining</div>
+                <div id="time-progress-bar" class="progress-bar time-progress" style="width: 100%;"></div>
             </div>
             
             <div class="camera-section">
@@ -179,12 +179,21 @@
     </div>
 
     <script>
-        let currentChallengeId = null;
-        let timerInterval = null;
-        let mediaStream = null;
-        let totalSessionPoints = parseInt(localStorage.getItem('totalSessionPoints') || '0');
-        let maxSessionPoints = 100; // Target for the progress bar
-        
+    // Configuration values exposed from backend
+    const CHALLENGE_DURATION = {{ challenge_duration|int }};
+    const MAX_POINTS_THIS_CHALLENGE = {{ max_points_per_challenge|int }};
+    const MAX_SESSION_POINTS = {{ max_points|int }};
+    // For UI config (color, etc) you can do: const UI_CONFIG = {{ ui|tojson }};
+
+    let currentChallengeId = null;
+    let timerInterval = null;
+    let mediaStream = null;
+    let totalSessionPoints = parseInt(localStorage.getItem('totalSessionPoints') || '0');
+    let maxSessionPoints = MAX_SESSION_POINTS; // Target for the progress bar
+
+    // If someone changes config, ensure maxSessionPoints is always kept synced
+    // You may want to update localStorage too if goal changes mid-session
+    
         document.getElementById('new-challenge-btn').addEventListener('click', startNewChallenge);
         document.getElementById('take-photo-btn').addEventListener('click', takePhoto);
         document.getElementById('play-again-btn').addEventListener('click', resetGame);
@@ -197,7 +206,7 @@
             const progressPercent = Math.min(100, (totalSessionPoints / maxSessionPoints) * 100);
             const pointsBar = document.getElementById('points-progress-bar');
             pointsBar.style.width = `${progressPercent}%`;
-            pointsBar.textContent = `Session Points: ${totalSessionPoints}/${maxSessionPoints}`;
+            pointsBar.textContent = "";
             
             // Check if the goal is reached
             if (totalSessionPoints >= maxSessionPoints) {
@@ -231,8 +240,8 @@
                 document.getElementById('challenge-image').src = `/static/images/${data.item.image}`;
                 
                 // Start timer
-                let timeRemaining = data.time_limit;
-                let maxTime = data.time_limit;
+                let timeRemaining = data.time_limit || CHALLENGE_DURATION;
+                let maxTime = data.time_limit || CHALLENGE_DURATION;
                 document.getElementById('timer').textContent = timeRemaining;
                 
                 // Reset time progress bar

@@ -3,13 +3,21 @@ import time
 import io
 import yaml
 import os
+import uuid
 from typing import List, Dict, Optional, Any
-from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException, Response, Cookie
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import uvicorn
+
+# Supabase client
+from app.supabase_client import supabase
+
+
+from dotenv import load_dotenv
+load_dotenv()
 
 # Import our image recognition module
 from app.image_recognition import analyze_image, get_points_for_match
@@ -40,6 +48,35 @@ CHALLENGE_ITEMS = CONFIG["content"]["items"]
 # Store active challenges
 active_challenges: Dict[str, Dict] = {}
 
+# Simple in-memory user/session cache. For prod, use persistent store or auth
+user_sessions: Dict[str, Dict[str, Any]] = {}
+
+# Helper functions
+def generate_user_id():
+    return str(random.getrandbits(63))
+
+def generate_session_id():
+    return str(random.getrandbits(63))
+
+# Fetch or create user_id & session_id for this client (cookie-based for now)
+def get_user_and_session_ids(request: Request, response: Response, user_id: Optional[str], session_id: Optional[str]):
+    if not user_id:
+        user_id = generate_user_id()
+        response.set_cookie(key="user_id", value=user_id, httponly=True)
+    if not session_id:
+        session_id = generate_session_id()
+        response.set_cookie(key="session_id", value=session_id, httponly=True)
+        # Also create a session entry in Supabase
+        # (insert new session row with points=0)
+        supabase.table("sessions").insert({
+            "session_id": session_id,
+            "user_id": user_id,
+            "points": 0
+        }).execute()
+    # Save mapping for reference (dev only, in-memory)
+    user_sessions[user_id] = {"session_id": session_id}
+    return user_id, session_id
+
 class Challenge(BaseModel):
     item_id: int
     start_time: float
@@ -48,38 +85,48 @@ class Challenge(BaseModel):
     success: bool = False
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """Render the home page"""
-    return templates.TemplateResponse("index.html", {"request": request})
+async def home(request: Request, response: Response, user_id: Optional[str] = Cookie(None), session_id: Optional[str] = Cookie(None)):
+    """Render the home page. Also create user/session IDs if needed (cookie-based)"""
+    # Cookies handled automatically
+    get_user_and_session_ids(request, response, user_id, session_id)
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "challenge_duration": CONFIG["challenge"]["time"]["default_duration"],
+        "max_points": CONFIG["challenge"]["points"]["goal"],
+        "max_points_per_challenge": CONFIG["challenge"]["points"]["max_per_challenge"],
+        "ui": CONFIG["ui"]
+    })
 
 @app.get("/challenge-complete", response_class=HTMLResponse)
 async def challenge_complete(request: Request):
     """Render the challenge complete page"""
-    return templates.TemplateResponse("challenge-complete.html", {"request": request})
+    return templates.TemplateResponse("challenge-complete.html", {
+        "request": request,
+        "max_points": CONFIG["challenge"]["points"]["goal"]
+    })
 
 @app.post("/api/new-challenge")
-async def new_challenge():
-    """Create a new challenge"""
+async def new_challenge(request: Request, response: Response, user_id: Optional[str] = Cookie(None), session_id: Optional[str] = Cookie(None)):
+    """Create a new challenge. Use user/session IDs."""
+    user_id, session_id = get_user_and_session_ids(request, response, user_id, session_id)
     # Select a random challenge item
     challenge_item = random.choice(CHALLENGE_ITEMS)
-    
-    # Generate a unique ID for this challenge
-    challenge_id = str(int(time.time()))
-    
+    # Generate unique challenge id (use uuid)
+    challenge_id = str(uuid.uuid4())
     # Create and store the challenge
     challenge = Challenge(
         item_id=challenge_item["id"],
         start_time=time.time()
     )
-    
     active_challenges[challenge_id] = {
         "item": challenge_item,
         "start_time": challenge.start_time,
         "time_limit": challenge.time_limit,
         "completed": False,
-        "success": False
+        "success": False,
+        "user_id": user_id,
+        "session_id": session_id
     }
-    
     # Return challenge details
     return {
         "challenge_id": challenge_id,
@@ -90,35 +137,46 @@ async def new_challenge():
 
 @app.post("/api/submit-photo/{challenge_id}")
 async def submit_photo(challenge_id: str, photo: UploadFile = File(...)):
-    """Submit a photo for a challenge"""
+    """Submit a photo for a challenge. Log results to Supabase."""
     if challenge_id not in active_challenges:
         raise HTTPException(status_code=404, detail="Challenge not found")
-    
     challenge = active_challenges[challenge_id]
-    
     # Check if time has expired
     elapsed_time = time.time() - challenge["start_time"]
     if elapsed_time > challenge["time_limit"]:
         challenge["completed"] = True
+        # Log event as failure
+        supabase.table("challenge-events").insert({
+            "user_id": challenge["user_id"],
+            "session_id": challenge["session_id"],
+            "success": False,
+            "duration": float(elapsed_time)
+        }).execute()
         return {"status": "failed", "message": "Time expired", "completed": True}
-    
     # Read the photo data
     contents = await photo.read()
-    
-    # Use our image recognition module to analyze the photo with confidence threshold from config
+    # Use our image recognition module to analyze the photo
     analysis_result = analyze_image(
         contents, 
         challenge["item"]["id"], 
         confidence_threshold=CONFIG["image_recognition"]["confidence_threshold"]
     )
-    
     if analysis_result["is_match"]:
         challenge["completed"] = True
         challenge["success"] = True
-        
         # Calculate points based on how quickly they found the item
         points = get_points_for_match(elapsed_time, challenge["time_limit"])
-        
+        # Update session points in session table
+        prev = supabase.table("sessions").select("points").eq("session_id", challenge["session_id"]).single().execute()
+        curr_points = prev.data["points"] if prev.data else 0
+        supabase.table("sessions").update({"points": curr_points + points}).eq("session_id", challenge["session_id"]).execute()
+        # Log event as success
+        supabase.table("challenge-events").insert({
+            "user_id": challenge["user_id"],
+            "session_id": challenge["session_id"],
+            "success": True,
+            "duration": float(elapsed_time)
+        }).execute()
         return {
             "status": "success", 
             "message": analysis_result["message"],
@@ -128,6 +186,7 @@ async def submit_photo(challenge_id: str, photo: UploadFile = File(...)):
             "detected_objects": analysis_result["detected_objects"]
         }
     else:
+        # Log event as failure but not completed (no session points change)
         return {
             "status": "failed", 
             "message": analysis_result["message"],
