@@ -110,15 +110,22 @@ class Challenge(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, response: Response, user_id: Optional[str] = Cookie(None), session_id: Optional[str] = Cookie(None)):
     """Render the home page. Also create user/session IDs if needed (cookie-based)"""
-    # Cookies handled automatically
-    get_user_and_session_ids(request, response, user_id, session_id)
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "challenge_duration": CONFIG["challenge"]["time"]["default_duration"],
-        "max_points": CONFIG["challenge"]["points"]["goal"],
-        "max_points_per_challenge": CONFIG["challenge"]["points"]["max_per_challenge"],
-        "ui": CONFIG["ui"]
-    })
+    try:
+        # Cookies handled automatically
+        get_user_and_session_ids(request, response, user_id, session_id)
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "challenge_duration": CONFIG["challenge"]["time"]["default_duration"],
+            "max_points": CONFIG["challenge"]["points"]["goal"],
+            "max_points_per_challenge": CONFIG["challenge"]["points"]["max_per_challenge"],
+            "ui": CONFIG["ui"]
+        })
+    except Exception as e:
+        # Fallback response if template rendering fails
+        return HTMLResponse(
+            content=f"<h1>House Hunt Challenge</h1><p>App is running but template error: {str(e)}</p>",
+            status_code=200
+        )
 
 @app.get("/challenge-complete", response_class=HTMLResponse)
 async def challenge_complete(request: Request):
@@ -306,6 +313,11 @@ async def debug_env():
         "total_env_vars": len(os.environ),
         "all_env_keys": list(os.environ.keys())[:20]  # First 20 keys for debugging
     }
+
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint for Railway"""
+    return {"status": "healthy", "message": "House Hunt Challenge API is running"}
 
 if __name__ == "__main__":
     import os
