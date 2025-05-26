@@ -20,11 +20,13 @@ app = FastAPI(
 )
 
 # Add CORS middleware to allow frontend requests
-# For now, allow all origins to debug the issue
-# TODO: Restrict this in production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for debugging
+    allow_origins=[
+        "https://tasker-theta-one.vercel.app",  # Production frontend
+        "http://localhost:3000",  # Local development
+        "http://127.0.0.1:3000"   # Alternative local
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
