@@ -11,7 +11,10 @@ const api = axios.create({
 export const gameApi = {
   // Start a new challenge
   startNewChallenge: async (): Promise<Challenge> => {
+    console.log('API Base URL:', API_BASE_URL);
+    console.log('Starting new challenge...');
     const response = await api.post('/api/new-challenge');
+    console.log('Challenge response:', response.data);
     return response.data;
   },
 

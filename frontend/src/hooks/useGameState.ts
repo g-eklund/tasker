@@ -71,6 +71,7 @@ export const useGameState = () => {
 
   const startNewChallenge = useCallback(async () => {
     try {
+      console.log('useGameState: Starting new challenge...');
       setGameState(prev => ({
         ...prev,
         feedback: 'Starting new challenge...',
@@ -78,6 +79,7 @@ export const useGameState = () => {
       }));
 
       const challenge = await gameApi.startNewChallenge();
+      console.log('useGameState: Received challenge:', challenge);
       
       setGameState(prev => ({
         ...prev,
@@ -88,7 +90,9 @@ export const useGameState = () => {
         feedbackType: 'info',
         sessionId: challenge.session_id,
       }));
+      console.log('useGameState: State updated successfully');
     } catch (error) {
+      console.error('useGameState: Error starting challenge:', error);
       setGameState(prev => ({
         ...prev,
         feedback: 'Failed to start challenge. Please try again.',

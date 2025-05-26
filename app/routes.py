@@ -68,13 +68,18 @@ async def new_challenge(
         "session_id": session_id
     }
     
-    return {
+    response_data = {
         "challenge_id": challenge_id,
         "item": challenge_item,
         "time_limit": challenge.time_limit,
         "start_time": challenge.start_time,
         "session_id": session_id
     }
+    
+    # Debug logging
+    print(f"New challenge response: {response_data}")
+    
+    return response_data
 
 @router.post("/api/submit-photo/{challenge_id}")
 async def submit_photo(challenge_id: str, photo: UploadFile = File(...)):
