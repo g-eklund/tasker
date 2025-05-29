@@ -76,6 +76,42 @@ content:
       name: "Plant"
       image: "plant.jpg"
       difficulty: "hard"
+    - id: 9
+      name: "Microwave"
+      image: "microwave.jpg"
+      difficulty: "easy"
+    - id: 10
+      name: "Pillow"
+      image: "pillow.jpg"
+      difficulty: "easy"
+    - id: 11
+      name: "Coffee Mug"
+      image: "coffee_mug.jpg"
+      difficulty: "medium"
+    - id: 12
+      name: "Bookshelf"
+      image: "bookshelf.jpg"
+      difficulty: "medium"
+    - id: 13
+      name: "Mirror"
+      image: "mirror.jpg"
+      difficulty: "hard"
+    - id: 14
+      name: "Toothbrush"
+      image: "toothbrush.jpg"
+      difficulty: "hard"
+    - id: 15
+      name: "Refrigerator"
+      image: "refrigerator.jpg"
+      difficulty: "easy"
+    - id: 16
+      name: "Computer Mouse"
+      image: "computer_mouse.jpg"
+      difficulty: "hard"
+    - id: 17
+      name: "Laundry Basket"
+      image: "laundry_basket.jpg"
+      difficulty: "medium"
 
 # UI settings
 ui:
@@ -95,6 +131,6 @@ ui:
 
 # Image recognition settings
 image_recognition:
-  confidence_threshold: 0.70   # Minimum confidence level for a match
+  confidence_threshold: 0.30   # Minimum confidence level for a match
   max_objects: 5               # Maximum number of objects to detect
   timeout: 5                   # Timeout for image processing in seconds

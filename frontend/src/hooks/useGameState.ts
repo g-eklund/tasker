@@ -178,14 +178,16 @@ export const useGameState = () => {
   }, [gameState.currentChallenge, gameState.totalPoints, gameState.sessionId, fetchSessionStats]);
 
   const resetGame = useCallback(() => {
+    // Reset everything including total points and localStorage
+    localStorage.removeItem('totalSessionPoints');
     setGameState({
       ...INITIAL_GAME_STATE,
-      totalPoints: gameState.totalPoints, // Keep total points
       isLoading: false,
     });
-  }, [gameState.totalPoints]);
+  }, []);
 
   const resetSession = useCallback(() => {
+    // This is the same as resetGame now, but kept for semantic clarity
     localStorage.removeItem('totalSessionPoints');
     setGameState({
       ...INITIAL_GAME_STATE,

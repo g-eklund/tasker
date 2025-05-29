@@ -108,7 +108,7 @@ async def submit_photo(challenge_id: str, photo: UploadFile = File(...)):
     # Use image recognition to analyze the photo
     analysis_result = analyze_image(
         contents, 
-        challenge["item"]["id"], 
+        challenge["item"]["name"],
         confidence_threshold=CONFIG["image_recognition"]["confidence_threshold"]
     )
     
@@ -138,7 +138,6 @@ async def submit_photo(challenge_id: str, photo: UploadFile = File(...)):
             "points": points,
             "completed": True,
             "confidence": analysis_result["confidence"],
-            "detected_objects": analysis_result["detected_objects"]
         }
     else:
         # Log event as failure but not completed
@@ -147,8 +146,7 @@ async def submit_photo(challenge_id: str, photo: UploadFile = File(...)):
             "message": analysis_result["message"],
             "completed": False,
             "confidence": analysis_result["confidence"],
-            "detected_objects": analysis_result["detected_objects"]
-        }
+            }
 
 @router.get("/api/challenge-status/{challenge_id}")
 async def challenge_status(challenge_id: str):

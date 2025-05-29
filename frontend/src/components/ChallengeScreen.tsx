@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import {
   VStack,
   Button,
@@ -20,6 +20,13 @@ interface ChallengeScreenProps {
   onStartOver: () => void;
 }
 
+// Detect if device is mobile
+const isMobileDevice = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+};
+
 const ChallengeScreen: React.FC<ChallengeScreenProps> = ({
   challenge,
   timeRemaining,
@@ -29,6 +36,56 @@ const ChallengeScreen: React.FC<ChallengeScreenProps> = ({
   onStartOver,
 }) => {
   const webcamRef = useRef<Webcam>(null);
+  
+  // Camera state
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>(() => {
+    // Default to back camera on mobile, front camera on desktop
+    return isMobileDevice() ? 'environment' : 'user';
+  });
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+
+  // Get available cameras on component mount
+  useEffect(() => {
+    const getCameras = async () => {
+      try {
+        // Request camera permission first
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        
+        // Get all video input devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        setAvailableCameras(videoDevices);
+        setHasMultipleCameras(videoDevices.length > 1);
+        
+        console.log('Available cameras:', videoDevices.length);
+        videoDevices.forEach((device, index) => {
+          console.log(`Camera ${index + 1}: ${device.label || `Camera ${index + 1}`}`);
+        });
+      } catch (error) {
+        console.error('Error accessing cameras:', error);
+        // Simple console log instead of toast for now
+      }
+    };
+
+    getCameras();
+  }, []);
+
+  // Video constraints based on facing mode
+  const videoConstraints = {
+    width: 400,
+    height: 300,
+    facingMode: facingMode,
+  };
+
+  const switchCamera = useCallback(() => {
+    setFacingMode(prev => {
+      const newMode = prev === 'user' ? 'environment' : 'user';
+      console.log(`Switching camera from ${prev} to ${newMode}`);
+      return newMode;
+    });
+  }, []);
 
   const capturePhoto = useCallback(() => {
     const imageSrc = webcamRef.current?.getScreenshot();
@@ -42,8 +99,6 @@ const ChallengeScreen: React.FC<ChallengeScreenProps> = ({
 
   const timePercentage = (timeRemaining / challenge.time_limit) * 100;
   const isTimeRunningOut = timeRemaining <= 10;
-
-
 
   return (
     <VStack gap={6} w="full">
@@ -107,15 +162,62 @@ const ChallengeScreen: React.FC<ChallengeScreenProps> = ({
         boxShadow="0 8px 20px rgba(0, 0, 0, 0.2)"
         bg="gray.100"
         p={2}
+        position="relative"
       >
         <Webcam
           ref={webcamRef}
           audio={false}
           screenshotFormat="image/jpeg"
-          width={400}
-          height={300}
+          videoConstraints={videoConstraints}
           style={{ borderRadius: '15px' }}
+          onUserMediaError={(error) => {
+            console.error('Webcam error:', error);
+          }}
         />
+        
+        {/* Camera Switch Button */}
+        {hasMultipleCameras && (
+          <Button
+            position="absolute"
+            top="10px"
+            right="10px"
+            size="sm"
+            borderRadius="full"
+            bg="white"
+            color="gray.700"
+            boxShadow="0 2px 8px rgba(0, 0, 0, 0.2)"
+            _hover={{
+              bg: "gray.100",
+              transform: "scale(1.05)",
+            }}
+            _active={{
+              transform: "scale(0.95)",
+            }}
+            onClick={switchCamera}
+            zIndex={1}
+            minW="40px"
+            h="40px"
+            p={0}
+          >
+            🔄
+          </Button>
+        )}
+        
+        {/* Camera indicator */}
+        <Box
+          position="absolute"
+          bottom="10px"
+          left="10px"
+          bg="blackAlpha.700"
+          color="white"
+          px={2}
+          py={1}
+          borderRadius="md"
+          fontSize="xs"
+          fontWeight="bold"
+        >
+          {facingMode === 'environment' ? '📷 Back' : '🤳 Front'}
+        </Box>
       </Box>
 
       <HStack gap={4} justify="center">
@@ -161,6 +263,23 @@ const ChallengeScreen: React.FC<ChallengeScreenProps> = ({
           🔄 Start Over
         </Button>
       </HStack>
+
+      {/* Camera info for mobile users */}
+      {isMobileDevice() && (
+        <Box
+          bg="blue.50"
+          p={3}
+          borderRadius="10px"
+          border="1px solid"
+          borderColor="blue.200"
+          maxW="400px"
+        >
+          <Text fontSize="sm" color="blue.700" textAlign="center">
+            💡 <strong>Tip:</strong> Use the {facingMode === 'environment' ? 'back' : 'front'} camera for better object detection!
+            {hasMultipleCameras && ' Tap 🔄 to switch cameras.'}
+          </Text>
+        </Box>
+      )}
 
       {feedback && (
         <Box
