@@ -24,3 +24,4 @@ app/static/uploads/
 frontend/package-lock.json
 frontend/public/favicon_io.zip
 *.zip
+/validation/*.jpeg

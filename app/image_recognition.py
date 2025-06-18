@@ -15,18 +15,23 @@ import io
 import random
 import yaml
 import os
+import base64
+import json
 from typing import Dict, Tuple, List
 from PIL import Image
 import numpy as np
 from PIL import Image
 import requests
 
-from transformers import CLIPProcessor, CLIPModel
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
 
-model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
-processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
+# Use OpenAI API instead of CLIP
+from openai import OpenAI
 
-
+# Initialize OpenAI client
+client = OpenAI()  # Uses OPENAI_API_KEY environment variable
 
 # Load configuration from config.yaml relative to project root
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yaml')
@@ -38,132 +43,146 @@ IMGREC_CONFIG = CONFIG.get('image_recognition', {})
 POINTS_CONFIG = CONFIG.get('challenge', {}).get('points', {})
 
 
-def sigmoid(logits):
-    return 1 / (1 + np.exp(-logits))
-
-
 def analyze_image(image_data: bytes, image_label: str, confidence_threshold: float = None) -> Dict:
     """
-    Analyze the submitted image using comparative ranking against common household objects.
-    More linear and interpretable than absolute confidence scoring.
+    Analyze the submitted image using OpenAI's Vision API to determine if it matches the target object.
     """
     threshold = confidence_threshold
     if threshold is None:
         threshold = IMGREC_CONFIG.get('confidence_threshold', 0.7)
 
     print(f"Image label: {image_label}")
-    # Load the image from the bytes data
-    image = Image.open(io.BytesIO(image_data))
-
-    # Create a comparative set: target object vs common household items
-    # This forces CLIP to make relative comparisons rather than absolute judgments
-    comparative_prompts = [
-        f"a {image_label}",  # Target object (index 0)
-        "a light switch",
-        "a door handle", 
-        "a wall outlet",
-        "a microwave",
-        "a pillow",
-        "a coffee mug",
-        "a mirror",
-        "a toothbrush",
-        "a computer mouse",
-        "a piece of furniture",
-        "a kitchen appliance",
-        "a bathroom fixture",
-        "household decoration",
-        "electronic device",
-        "home interior item",
-        "random household object",
-        "wall or ceiling surface",
-    ]
     
-    # Also test with more specific variants of the target
-    target_variants = [
-        f"a clear photo of a {image_label}",
-        f"a {image_label} in this image", 
-        f"this is a {image_label}",
-    ]
+    # Convert image data to base64 for OpenAI API
+    base64_image = base64.b64encode(image_data).decode('utf-8')
     
-    # Combine all prompts
-    all_prompts = comparative_prompts + target_variants
-
-    # Process the image with CLIP
-    inputs = processor(
-        text=all_prompts,
-        images=image,
-        return_tensors="pt",
-        padding=True
-    )
-
-    # Get the logits per image  
-    outputs = model(**inputs)
-    logits_per_image = outputs.logits_per_image
+    # Create a detailed prompt for zero-shot classification
+    prompt = f"""
+    Please analyze this image and determine if it contains a {image_label}.
     
-    # Use minimal temperature to get cleaner probabilities
-    temperature = 1.0  # No temperature scaling
-    probs = logits_per_image.softmax(dim=1)
+    Respond with a JSON object containing:
+    1. "is_match": true if the image clearly shows a {image_label}, false otherwise
+    2. "confidence": a decimal between 0.0 and 1.0 indicating how confident you are
+    3. "reasoning": a brief explanation of what you see and why you made this determination
+    4. "primary_object": what the main object in the image appears to be
     
-    # Get probabilities
-    target_prob = float(probs[0, 0].detach().numpy())  # First prompt is target
+    Be strict in your evaluation - only return true if you're confident the image shows a {image_label}.
+    Consider lighting, angle, clarity, and whether the object is the main focus of the image.
     
-    # Get max probability among household objects (indices 1-11)
-    household_probs = probs[0, 1:12]  # household objects
-    max_household_prob = float(household_probs.max().detach().numpy())
+    Example response:
+    {{
+        "is_match": true,
+        "confidence": 0.85,
+        "reasoning": "The image clearly shows a [object] in good lighting with clear details visible",
+        "primary_object": "{image_label}"
+    }}
+    """
     
-    # Get max probability among target variants (indices 12+)
-    variant_probs = probs[0, 12:]  # target variants
-    max_variant_prob = float(variant_probs.max().detach().numpy())
-    
-    # Combined target confidence (average of direct target and best variant)
-    combined_target_conf = (target_prob + max_variant_prob) / 2
-    
-    # Relative confidence: how much more likely is target vs household objects
-    relative_confidence = combined_target_conf / (max_household_prob + combined_target_conf + 1e-8)
-    
-    # Linear scaling: if target is clearly winning, confidence is high
-    # If household objects are winning, confidence is low
-    confidence = relative_confidence
-    
-    print(f"Target probability: {target_prob}")
-    print(f"Max variant probability: {max_variant_prob}")
-    print(f"Combined target confidence: {combined_target_conf}")
-    print(f"Max household object probability: {max_household_prob}")
-    print(f"Relative confidence: {relative_confidence}")
-    print(f"Final confidence: {confidence}")
-    
-    is_correct = confidence > threshold
-    
-    if is_correct:
-        message = f"Great job! That looks like the right item! (Confidence: {confidence:.2f})"
-    else:
-        if max_household_prob > combined_target_conf:
-            # Find which household object won
-            winning_idx = int(household_probs.argmax()) + 1
-            household_objects = [
-                "light switch", "door handle", "wall outlet", "microwave", 
-                "pillow", "coffee mug", "mirror", "toothbrush", "computer mouse",
-                "piece of furniture", "kitchen appliance", "bathroom fixture", 
-                "household decoration", "electronic device", "home interior item", 
-                "random household object", "wall or ceiling surface"
-            ]
-            winning_object = household_objects[winning_idx - 1]
-            message = f"This looks more like a {winning_object} than a {image_label}. Try again!"
+    try:
+        # Call OpenAI Vision API
+        response = client.chat.completions.create(
+            model="gpt-4o",  # Use gpt-4o which has vision capabilities
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}",
+                                "detail": "low"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300,
+            temperature=0.1  # Low temperature for more consistent results
+        )
+        
+        # Parse the response
+        response_text = response.choices[0].message.content
+        print(f"OpenAI response: {response_text}")
+        
+        # Try to extract JSON from the response
+        try:
+            # Find JSON object in the response
+            start_idx = response_text.find('{')
+            end_idx = response_text.rfind('}') + 1
+            if start_idx != -1 and end_idx != 0:
+                json_str = response_text[start_idx:end_idx]
+                analysis_result = json.loads(json_str)
+            else:
+                raise ValueError("No JSON found in response")
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"Failed to parse JSON response: {e}")
+            # Fallback: try to extract key information using simple parsing
+            is_match = "true" in response_text.lower() and ("is_match" in response_text.lower())
+            confidence = 0.5  # Default confidence if we can't parse
+            reasoning = response_text[:200] + "..." if len(response_text) > 200 else response_text
+            primary_object = "unknown"
+            
+            analysis_result = {
+                "is_match": is_match,
+                "confidence": confidence,
+                "reasoning": reasoning,
+                "primary_object": primary_object
+            }
+        
+        # Extract values with defaults
+        is_match = analysis_result.get("is_match", False)
+        api_confidence = analysis_result.get("confidence", 0.5)
+        reasoning = analysis_result.get("reasoning", "Analysis completed")
+        primary_object = analysis_result.get("primary_object", "unknown")
+        
+        print(f"API confidence: {api_confidence}")
+        print(f"Reasoning: {reasoning}")
+        print(f"Primary object detected: {primary_object}")
+        
+        # Apply threshold
+        is_correct = is_match and api_confidence > threshold
+        
+        # Generate user-friendly message
+        if is_correct:
+            message = f"Great job! That looks like the right item! (Confidence: {api_confidence:.2f})"
         else:
-            message = f"I'm not confident this is a {image_label}. Try again! (Confidence: {confidence:.2f})"
-    
-    return {
-        "is_match": is_correct,
-        "confidence": confidence,
-        "message": message,
-        "debug_info": {
-            "target_probability": target_prob,
-            "max_variant_probability": max_variant_prob,
-            "combined_target_confidence": combined_target_conf,
-            "max_household_probability": max_household_prob,
-            "relative_confidence": relative_confidence
+            if not is_match:
+                if primary_object != "unknown" and primary_object.lower() != image_label.lower():
+                    message = f"This looks more like a {primary_object} than a {image_label}. Try again!"
+                else:
+                    message = f"I'm not confident this is a {image_label}. Try again!"
+            else:
+                message = f"The image might show a {image_label}, but I'm not confident enough. Try again! (Confidence: {api_confidence:.2f})"
+        
+        return {
+            "is_match": is_correct,
+            "confidence": api_confidence,
+            "message": message,
+            "debug_info": {
+                "api_is_match": is_match,
+                "api_confidence": api_confidence,
+                "reasoning": reasoning,
+                "primary_object": primary_object,
+                "threshold_used": threshold
+            }
         }
-    }
+        
+    except Exception as e:
+        print(f"Error calling OpenAI API: {e}")
+        # Fallback to a safe response
+        return {
+            "is_match": False,
+            "confidence": 0.0,
+            "message": f"Unable to analyze image due to technical error. Please try again.",
+            "debug_info": {
+                "error": str(e),
+                "threshold_used": threshold
+            }
+        }
 
 def get_points_for_match(time_taken: float, max_time: float) -> int:
     """

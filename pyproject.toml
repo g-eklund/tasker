@@ -22,4 +22,5 @@ dependencies = [
     "matplotlib>=3.10.3",
     "sentencepiece>=0.2.0",
     "protobuf>=6.31.1",
+    "openai>=1.88.0",
 ]
